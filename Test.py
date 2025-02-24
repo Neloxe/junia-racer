@@ -1,18 +1,16 @@
 import os
 
+import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 from juniaRacer import JuniaRacerEnv
 
-# Step 1: Load the environment
 env = JuniaRacerEnv()
 
-# Step 2: Wrap the environment in a DummyVecEnv
 vec_env = DummyVecEnv([lambda: env])
 
-# Step 3: Load the last trained model
-model_path = "ppo_juniaracer.zip"  # Path to your saved model
+model_path = "ppo_juniaracer.zip"
 if os.path.exists(model_path):
     model = PPO.load(model_path, env=vec_env)
     print("Model loaded successfully.")
@@ -21,17 +19,19 @@ else:
         f"Model file '{model_path}' not found. Please train the model first."
     )
 
-# Step 4: Test the loaded model
+exploration_rate = 0.05
+
 for _ in range(100):
     env.reset()
     done = False
     obs = vec_env.reset()
 
     while not done:
-        action, _states = model.predict(obs)
-        obs, reward, done, truncated, info = env.step(
-            action.item()
-        )  # Ensure action is passed as scalar
-        env.render()  # See the environment in action
+        if np.random.rand() < exploration_rate:
+            action = env.action_space.sample()  # Take a random action
+        else:
+            action, _states = model.predict(obs)
+        obs, reward, done, truncated, info = env.step(action.item())
+        env.render()
 
 env.close()

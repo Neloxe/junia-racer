@@ -7,17 +7,16 @@ from gymnasium import spaces
 
 
 class JuniaRacerEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "video.frames_per_second": 30}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 1000}
 
     def __init__(self):
         super(JuniaRacerEnv, self).__init__()
 
         # Initialize Pygame
         pygame.init()
-        self.size = self.width, self.height = 1600, 900
+        self.size = self.width, self.height = 1400, 800
         self.gameDisplay = pygame.display.set_mode(self.size)
         self.clock = pygame.time.Clock()
-        self.FPS = 240
 
         # Load images
         self.white_small_car = pygame.image.load("Images/Sprites/white_small.png")
@@ -39,6 +38,13 @@ class JuniaRacerEnv(gym.Env):
         )
 
         self.prev_angle = self.car.angle  # Store previous angle for U-turn detection
+        self.start_time = None  # Initialize start time for the timer
+        self.elapsed_time = 0  # Initialize elapsed time
+        self.best_lap_time = 99999  # Initialize best lap time
+
+        # Define start/end line coordinates
+        self.start_line = (70, 470, 210, 480)  # Example coordinates (x1, y1, x2, y2)
+        self.prev_car_position = (self.car.x, self.car.y)  # Store previous car position
 
     def reset(self, seed=None, options=None):
         """
@@ -47,6 +53,9 @@ class JuniaRacerEnv(gym.Env):
         super().reset(seed=seed)  # Properly handle Gym seed for reproducibility
         self.car.resetPosition()
         self.car.update()
+        self.start_time = pygame.time.get_ticks()  # Start the timer
+        self.elapsed_time = 0  # Reset elapsed time
+        self.prev_car_position = (self.car.x, self.car.y)  # Reset previous car position
 
         # Return both observation and info as required by Gymnasium
         return self._get_obs(), {}  # Ensures a tuple (obs, info) is returned
@@ -103,6 +112,25 @@ class JuniaRacerEnv(gym.Env):
         # Update previous angle for next step
         self.prev_angle = self.car.angle
 
+        # Calculate elapsed time for the turn
+        current_time = pygame.time.get_ticks()
+        self.elapsed_time = (current_time - self.start_time) / 1000.0
+
+        # Check if the car crosses the start/end line
+        if self._crossed_start_line():
+            self.start_time = current_time  # Reset the timer for the next lap
+            if (
+                self.best_lap_time is None
+                or self.elapsed_time < self.best_lap_time
+                and self.elapsed_time > 1
+            ):
+                self.best_lap_time = self.elapsed_time
+            reward += 50  # Reward for completing a lap
+            self.elapsed_time = 0  # Reset elapsed time for the next lap
+
+        # Update previous car position
+        self.prev_car_position = (self.car.x, self.car.y)
+
         return self._get_obs(), reward, done, False, {}
 
     def render(self, mode="human"):
@@ -111,8 +139,30 @@ class JuniaRacerEnv(gym.Env):
         """
         self.gameDisplay.blit(self.bg, (0, 0))
         self.car.draw(self.gameDisplay)
-        self.car.draw_sensors(self.gameDisplay)
+
+        # Draw the start/end line
+        pygame.draw.line(
+            self.gameDisplay,
+            (0, 255, 0),
+            (self.start_line[0], self.start_line[1]),
+            (self.start_line[2], self.start_line[3]),
+            5,
+        )
+
+        # Display the timer
+        font = pygame.font.Font(None, 36)
+        text = font.render(f"Time: {self.elapsed_time:.2f} s", True, (255, 255, 255))
+        self.gameDisplay.blit(text, (10, 10))
+
+        # Display the best lap time
+        lap_text = font.render(
+            f"Best Lap: {self.best_lap_time:.2f} s", True, (255, 255, 255)
+        )
+        self.gameDisplay.blit(lap_text, (10, 50))
+
         pygame.display.update()
+
+        pygame.time.Clock().tick(5000)
 
     def _get_obs(self):
         """
@@ -140,6 +190,18 @@ class JuniaRacerEnv(gym.Env):
         return ((value - original_min) / (original_max - original_min)) * (
             target_max - target_min
         ) + target_min
+
+    def _crossed_start_line(self):
+        """
+        Checks if the car has crossed the start/end line.
+        """
+        x1, y1, x2, y2 = self.start_line
+        car_x, car_y = self.car.x, self.car.y
+
+        if car_x >= x1 and car_x <= x2:
+            if car_y >= y1 and car_y <= y2:
+                return True
+        return False
 
     def close(self):
         """
@@ -207,18 +269,6 @@ class Car:
         rotated_image = pygame.transform.rotate(self.car_image, -self.angle - 180)
         rect_rotated_image = rotated_image.get_rect(center=(self.x, self.y))
         display.blit(rotated_image, rect_rotated_image)
-
-    def draw_sensors(self, display):
-        """
-        Draws the sensors on the display.
-        """
-        for i in range(1, 9):
-            sensor_x, sensor_y = move((self.x, self.y), self.angle + i * 45, 10)
-            while self.bg4.get_at((int(sensor_x), int(sensor_y))).a != 0:
-                sensor_x, sensor_y = move((sensor_x, sensor_y), self.angle + i * 45, 10)
-            pygame.draw.line(
-                display, (255, 0, 0), (self.x, self.y), (sensor_x, sensor_y)
-            )
 
     def collision(self):
         """
