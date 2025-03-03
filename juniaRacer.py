@@ -7,7 +7,7 @@ from gymnasium import spaces
 
 
 class JuniaRacerEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 1000}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(self):
         super(JuniaRacerEnv, self).__init__()
@@ -84,30 +84,19 @@ class JuniaRacerEnv(gym.Env):
 
         # Collision penalty
         if done:
-            reward = -100
+            reward = -2000
 
-        # Check if the car made a U-turn or is going the wrong way
-        angle_diff = abs(self.car.angle - self.prev_angle)
-        if angle_diff > 180:  # U-turn detected, reward for not turning around
-            reward -= 50  # Apply penalty for making a sharp U-turn
+        # # Check if the car made a U-turn or is going the wrong way
+        # angle_diff = abs(self.car.angle - self.prev_angle)
+        # if angle_diff > 180:  # U-turn detected, reward for not turning around
+        #     reward -= 50  # Apply penalty for making a sharp U-turn
 
         # Encourage forward motion (positive velocity) and penalize negative velocity
-        if self.car.velocity > 0:
-            reward += self.car.velocity  # Reward proportional to velocity
-        else:
-            reward -= 1  # Penalty for moving in the wrong direction
+        reward += self.car.velocity * 2
 
-        # Penalize excessive braking
-        if action == 3:
-            reward -= 0.5
-
-        # Reward for staying on track (not colliding)
-        if not done:
-            reward += 10
-
-        # Reward for maintaining a moderate speed
-        if 2 <= self.car.velocity <= 6:
-            reward += 5
+        # Penalize for getting too close to the walls
+        if min(self.car.d1, self.car.d2, self.car.d3, self.car.d4, self.car.d5) < 10:
+            reward -= 100
 
         # Update previous angle for next step
         self.prev_angle = self.car.angle
@@ -122,10 +111,10 @@ class JuniaRacerEnv(gym.Env):
             if (
                 self.best_lap_time is None
                 or self.elapsed_time < self.best_lap_time
-                and self.elapsed_time > 1
+                and self.elapsed_time > 4
             ):
                 self.best_lap_time = self.elapsed_time
-            reward += 50  # Reward for completing a lap
+                # reward += 50  # Reward for completing a lap
             self.elapsed_time = 0  # Reset elapsed time for the next lap
 
         # Update previous car position
@@ -162,7 +151,7 @@ class JuniaRacerEnv(gym.Env):
 
         pygame.display.update()
 
-        pygame.time.Clock().tick(5000)
+        pygame.time.Clock().tick(120)
 
     def _get_obs(self):
         """

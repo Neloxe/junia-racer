@@ -8,7 +8,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from juniaRacer import JuniaRacerEnv
 
-env = JuniaRacerEnv(render_mode="rgb_array", render_fps=1000)
+env = JuniaRacerEnv()
 
 check_env(env, warn=True)
 
@@ -23,5 +23,5 @@ checkpoint_callback = CheckpointCallback(
 model = PPO("MlpPolicy", vec_env, verbose=1, tensorboard_log=log_dir)
 model.learn(total_timesteps=1000000, callback=checkpoint_callback, progress_bar=True)
 
-model.save("ppo_juniaracer")
+model.save("ppo_juniaracer_4")
 print("Model saved.")

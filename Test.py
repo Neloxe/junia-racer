@@ -10,7 +10,7 @@ env = JuniaRacerEnv()
 
 vec_env = DummyVecEnv([lambda: env])
 
-model_path = "ppo_juniaracer.zip"
+model_path = "ppo_juniaracer_4.zip"
 if os.path.exists(model_path):
     model = PPO.load(model_path, env=vec_env)
     print("Model loaded successfully.")
